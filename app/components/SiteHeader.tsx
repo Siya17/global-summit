@@ -1,0 +1,2 @@
+import Link from "next/link";
+export function SiteHeader({compact=false}:{compact?:boolean}){return <header className={`site-header ${compact?"compact":""}`}><Link href="/" className="brand" aria-label="Global Summit home"><span className="brand-mark" aria-hidden="true">GS</span><span><strong>Global Summit</strong><small>Emerging Technology &amp; Peace</small></span></Link><nav aria-label="Primary navigation"><Link href="/summit">Student summit</Link><Link href="/dashboard">Class dashboard</Link><Link href="/instructor">Instructor</Link></nav></header>}

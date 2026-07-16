@@ -1,98 +1,49 @@
-# vinext-starter
+# Global Summit on Emerging Technology and Peace
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+A responsive graduate-level Peace Studies classroom activity. Student groups evaluate 15 draft regulations, submit one shared framework, and compare normative importance with political feasibility on a live class dashboard.
 
-## Prerequisites
+## Stack
 
-- Node.js `>=22.13.0`
+- TypeScript, React, and the Next.js-compatible vinext app router
+- Cloudflare D1 for sessions, editable regulations, drafts, and submissions
+- Cloudflare Sites hosting; no student accounts required
 
-## Quick Start
+D1 is used because class records must survive refreshes and be shared across devices. Browser storage is used only for a recoverable draft on the group’s current device.
 
-```bash
-npm install
-npm run dev
-npm run build
-```
+## Local setup
 
-This starter does not use `wrangler.jsonc`.
+1. Install dependencies with `npm install`.
+2. Copy `.env.example` to `.env.local` and set a strong `INSTRUCTOR_PASSWORD`.
+3. Run `npm run db:generate` after schema changes.
+4. Run `npm run dev` and open the local URL shown.
 
-## Included Shape
+The starter session code is `PEACE26`. The database and editable seed content are initialized on first request. The default instructor password is intentionally not included.
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+## Classroom flow
 
-## Workspace Auth Headers
+- Students open `/summit`, enter the session code and group details, and complete four required judgments for every regulation.
+- `/dashboard` refreshes every 15 seconds and also has a manual refresh control.
+- `/instructor` creates sessions, opens or closes submissions, edits evidence and sources, removes accidental entries, resets a session, adjusts thresholds, and exports CSV or JSON.
+- Resubmission uses the session plus normalized group name as a unique key, preventing duplicate entries.
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+## Dashboard classifications
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+Thresholds are percentages and are editable per session. Categories are evaluated in this order: Necessary but difficult, Revision needed, Contested, Low priority, then Strong consensus. The default minimum framework requires at least 55% support, at least 40% Essential, and no more than 25% Remove. The dashboard always displays the active framework thresholds.
 
-Treat the full name as optional and fall back to email when it is absent:
+## Deployment and database
 
-```tsx
-import { headers } from "next/headers";
+`.openai/hosting.json` declares the logical D1 binding as `DB`. Generated Drizzle migrations live in `drizzle/`; the app also runs idempotent `CREATE TABLE IF NOT EXISTS` statements so a new classroom deployment can initialize safely. Set `INSTRUCTOR_PASSWORD` as a hosted secret before sharing the instructor URL.
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
+## Manual check
 
-  const displayName = fullName ?? email;
-  // ...
-}
-```
+- Join with `PEACE26`, complete all required controls, move backward and forward, and confirm the draft survives refresh.
+- Submit, edit, and resubmit the same group; verify only one dashboard entry exists.
+- Confirm dashboard percentages and Important but Difficult ranking with two contrasting groups.
+- Close submissions and verify student writes are rejected with a clear message.
+- Edit one evidence card, export CSV and JSON, delete a test entry, and test mobile keyboard navigation.
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+## Current MVP limits
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+- Instructor access uses one environment password rather than named instructor accounts.
+- Dashboard refresh is polling rather than a push subscription.
+- Source links and provisional evidence notes should be reviewed by the instructor before assessed use.

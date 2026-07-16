@@ -1,15 +1,3 @@
-import type { Metadata } from "next";
-import { SkeletonPreview } from "./_sites-preview/SkeletonPreview";
-
-export const metadata: Metadata = {
-  title: "Your site is taking shape",
-  description:
-    "Codex is building the first version. It’ll appear here automatically when it’s ready.",
-  other: {
-    "codex-preview": "development",
-  },
-};
-
-export default function Home() {
-  return <SkeletonPreview />;
-}
+import Link from "next/link";
+import { SiteHeader } from "./components/SiteHeader";
+export default function Home(){return <main><div className="landing-shell"><SiteHeader/><section className="hero"><div className="hero-copy"><p className="eyebrow">Graduate Peace Studies · Collaborative simulation</p><h1>Build the strongest framework the world could actually accept.</h1><p className="hero-lede">An international working group has drafted 15 preliminary principles on emerging technology and peace. Your group is participating in a global summit to evaluate and revise the document.</p><p className="hero-note">The goal is not a perfect agreement. It is to identify the strongest framework that many countries could realistically accept.</p><div className="hero-actions"><Link className="button primary large" href="/summit">Enter the Summit <span aria-hidden="true">→</span></Link><Link className="text-link" href="/dashboard">View class dashboard</Link></div></div><div className="brief-card" aria-label="Summit briefing"><p className="card-kicker">Summit briefing · 15 principles</p><h2>Evidence before agreement</h2>{[["01","Military AI","Human control & responsibility"],["06","Accountability","Evaluation & transparency"],["10","Civilian protection","Surveillance & sensitive data"],["15","International order","Participation & monitoring"]].map(x=><div className="brief-rule" key={x[0]}><span>{x[0]}</span><p><strong>{x[1]}</strong><br/>{x[2]}</p></div>)}<p className="brief-footer">One group. Four judgments per principle. One minimum framework.</p></div></section><section className="landing-strip" aria-label="Activity steps"><div><span>1</span><p><strong>Read</strong> a draft rule and balanced evidence.</p></div><div><span>2</span><p><strong>Decide</strong> what matters and what is feasible.</p></div><div><span>3</span><p><strong>Negotiate</strong> a class minimum framework.</p></div></section></div></main>}

@@ -1,4 +1,5 @@
-// Intentionally empty by default.
-// Add Drizzle tables here when the site actually needs a database.
-// See examples/d1/db/schema.ts for an opt-in example.
-export {};
+import { sql } from "drizzle-orm";
+import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+export const summitSessions=sqliteTable("summit_sessions",{id:text("id").primaryKey(),sessionCode:text("session_code").notNull().unique(),title:text("title").notNull(),status:text("status").notNull().default("open"),thresholdsJson:text("thresholds_json").notNull(),frameworkJson:text("framework_json").notNull().default("[]"),createdAt:text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`)});
+export const regulations=sqliteTable("regulations",{id:text("id").primaryKey(),number:integer("number").notNull().unique(),title:text("title").notNull(),legalText:text("legal_text").notNull(),evidenceFor:text("evidence_for").notNull(),evidenceChallenge:text("evidence_challenge").notNull(),evidenceDataPoint:text("evidence_data_point").notNull(),sourcesJson:text("sources_json").notNull().default("[]")});
+export const groupSubmissions=sqliteTable("group_submissions",{id:text("id").primaryKey(),sessionId:text("session_id").notNull(),groupName:text("group_name").notNull(),groupKey:text("group_key").notNull(),participantNames:text("participant_names").notNull().default(""),responsesJson:text("responses_json").notNull().default("{}"),submitted:integer("submitted").notNull().default(0),createdAt:text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),updatedAt:text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`)},t=>[uniqueIndex("submissions_session_group_idx").on(t.sessionId,t.groupKey)]);
