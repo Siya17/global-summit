@@ -1,49 +1,40 @@
 # Global Summit on Emerging Technology and Peace
 
-A responsive graduate-level Peace Studies classroom activity. Student groups evaluate 15 draft regulations, submit one shared framework, and compare normative importance with political feasibility on a live class dashboard.
+A graduate Peace Studies classroom simulation in React and TypeScript. Student groups evaluate 10 measurable draft regulations, examine sourced evidence charts, and negotiate a minimum framework.
 
-## Stack
+## Hosting design
 
-- TypeScript, React, and the Next.js-compatible vinext app router
-- Cloudflare D1 for sessions, editable regulations, drafts, and submissions
-- Cloudflare Sites hosting; no student accounts required
+- **Primary:** Cloudflare Sites.
+- **Backup:** Vercel, built from the same repository with `npm run build:vercel`.
+- **Shared backend when connected:** Firebase Authentication and Cloud Firestore.
+- **Transition fallback:** Cloudflare D1 remains active when Firebase environment values are absent.
 
-D1 is used because class records must survive refreshes and be shared across devices. Browser storage is used only for a recoverable draft on the group’s current device.
+Both deployments use the same Firebase records after the same `NEXT_PUBLIC_FIREBASE_*` values are configured on Cloudflare and Vercel.
 
-## Local setup
+## Firebase setup
 
-1. Install dependencies with `npm install`.
-2. Copy `.env.example` to `.env.local` and set a strong `INSTRUCTOR_PASSWORD`.
-3. Run `npm run db:generate` after schema changes.
-4. Run `npm run dev` and open the local URL shown.
+1. Create one Firebase project.
+2. Enable **Email/Password** and **Anonymous** authentication.
+3. Create only your instructor user in Firebase Authentication and choose the password there. Never place that password in source code or send it in chat.
+4. Replace `replace-with-your-email@example.com` in `firestore.rules` with your exact email, then deploy the rules.
+5. Copy `.env.example` to `.env.local` and add the Firebase web-app configuration.
+6. Add the same public variables to Cloudflare and Vercel.
+7. Add both deployment domains to Firebase Authentication’s authorized domains.
 
-The starter session code is `PEACE26`. The database and editable seed content are initialized on first request. The default instructor password is intentionally not included.
+The first successful instructor login initializes session `PEACE26` and the 10 regulations. Firestore rules enforce the instructor email independently of the interface.
 
-## Classroom flow
+## Cloudflare fallback
 
-- Students open `/summit`, enter the session code and group details, and complete four required judgments for every regulation.
-- `/dashboard` refreshes every 15 seconds and also has a manual refresh control.
-- `/instructor` creates sessions, opens or closes submissions, edits evidence and sources, removes accidental entries, resets a session, adjusts thresholds, and exports CSV or JSON.
-- Resubmission uses the session plus normalized group name as a unique key, preventing duplicate entries.
+Until Firebase is connected, Cloudflare uses D1 and checks both `INSTRUCTOR_EMAIL` and `INSTRUCTOR_PASSWORD` on the server. Configure both as hosted secrets before using the instructor page.
 
-## Dashboard classifications
+## Classroom routes
 
-Thresholds are percentages and are editable per session. Categories are evaluated in this order: Necessary but difficult, Revision needed, Contested, Low priority, then Strong consensus. The default minimum framework requires at least 55% support, at least 40% Essential, and no more than 25% Remove. The dashboard always displays the active framework thresholds.
+- `/summit`: student group deliberation and submission.
+- `/dashboard`: live aggregate results and the provisional minimum framework.
+- `/instructor`: your restricted session, content, export, and threshold controls.
 
-## Deployment and database
+Students use invisible anonymous Firebase sessions; they do not create named accounts. Participant names are stored separately from public dashboard submissions and are readable only by the instructor under the supplied Firestore rules.
 
-`.openai/hosting.json` declares the logical D1 binding as `DB`. Generated Drizzle migrations live in `drizzle/`; the app also runs idempotent `CREATE TABLE IF NOT EXISTS` statements so a new classroom deployment can initialize safely. Set `INSTRUCTOR_PASSWORD` as a hosted secret before sharing the instructor URL.
+## Local use
 
-## Manual check
-
-- Join with `PEACE26`, complete all required controls, move backward and forward, and confirm the draft survives refresh.
-- Submit, edit, and resubmit the same group; verify only one dashboard entry exists.
-- Confirm dashboard percentages and Important but Difficult ranking with two contrasting groups.
-- Close submissions and verify student writes are rejected with a clear message.
-- Edit one evidence card, export CSV and JSON, delete a test entry, and test mobile keyboard navigation.
-
-## Current MVP limits
-
-- Instructor access uses one environment password rather than named instructor accounts.
-- Dashboard refresh is polling rather than a push subscription.
-- Source links and provisional evidence notes should be reviewed by the instructor before assessed use.
+Install dependencies, configure `.env.local`, and run `npm run dev`. Use `npm run build` for Cloudflare and `npm run build:vercel` for Vercel.

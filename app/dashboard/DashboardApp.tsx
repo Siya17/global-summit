@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { SiteHeader } from "../components/SiteHeader";
+import { firebaseAvailable, firebaseLoadSession, firebaseLoadSubmissions } from "../lib/firebaseBackend";
 import { aggregateResponses, defaultFramework, pct, type Aggregate, type Category } from "../lib/analytics";
 import { decisionLabels, feasibilityLabels, obstacleLabels, priorityLabels, type Regulation, type Submission, type SummitSession } from "../lib/types";
 
@@ -11,7 +12,27 @@ function Bar({items,total}:{items:{label:string;value:number;className:string}[]
 
 export function DashboardApp(){
   const search=useSearchParams(),[code,setCode]=useState(search.get("code")||"PEACE26"),[session,setSession]=useState<SummitSession|null>(null),[regulations,setRegulations]=useState<Regulation[]>([]),[submissions,setSubmissions]=useState<Submission[]>([]),[sort,setSort]=useState("number"),[filter,setFilter]=useState<string>("All categories"),[selected,setSelected]=useState<Aggregate|null>(null),[framework,setFramework]=useState<number[]>([]),[error,setError]=useState(""),[loading,setLoading]=useState(true);
-  async function load(){setLoading(true);setError("");try{const[a,b]=await Promise.all([fetch(`/api/session?code=${code}`),fetch(`/api/submissions?code=${code}`)]),sessionData=await a.json(),submissionData=await b.json();if(!a.ok)throw new Error(sessionData.error);if(!b.ok)throw new Error(submissionData.error);setSession(sessionData.session);setRegulations(sessionData.regulations);setSubmissions(submissionData.submissions)}catch(e){setError(e instanceof Error?e.message:"Unable to load dashboard.")}finally{setLoading(false)}}
+  async function load(){
+    setLoading(true);
+    setError("");
+    try{
+      if(firebaseAvailable()){
+        const [sessionData,submissionData]=await Promise.all([firebaseLoadSession(code),firebaseLoadSubmissions(code)]);
+        setSession(sessionData.session);
+        setRegulations(sessionData.regulations);
+        setSubmissions(submissionData.submissions);
+      }else{
+        const[a,b]=await Promise.all([fetch(`/api/session?code=${code}`),fetch(`/api/submissions?code=${code}`)]);
+        const sessionData=await a.json(),submissionData=await b.json();
+        if(!a.ok)throw new Error(sessionData.error);
+        if(!b.ok)throw new Error(submissionData.error);
+        setSession(sessionData.session);
+        setRegulations(sessionData.regulations);
+        setSubmissions(submissionData.submissions);
+      }
+    }catch(e){setError(e instanceof Error?e.message:"Unable to load dashboard.")}
+    finally{setLoading(false)}
+  }
   useEffect(()=>{load();const timer=setInterval(load,15000);return()=>clearInterval(timer)},[code]);
   const aggregates=useMemo(()=>session?aggregateResponses(regulations,submissions,session.thresholds):[],[session,regulations,submissions]);
   useEffect(()=>{if(!session||!aggregates.length)return;setFramework(session.framework.length?session.framework:defaultFramework(aggregates,session.thresholds))},[session,aggregates.length]);
