@@ -101,7 +101,7 @@ export async function firebaseSaveSubmission(input: {
   }
   const completed = regulations.filter((regulation) => {
     const response = input.responses[regulation.id];
-    return response?.decision && response.feasibility && response.priority && response.obstacle && (response.obstacle !== "other" || response.otherObstacle?.trim());
+    return response?.decision && response.feasibility && response.priority && response.obstacles?.length && (!response.obstacles.includes("other") || response.otherObstacle?.trim());
   }).length;
   if (input.submitted && completed !== regulations.length) throw new Error("Complete every required response before submitting.");
   const now = new Date().toISOString();
@@ -156,9 +156,13 @@ export async function firebaseEnsureSeed() {
     };
     await setDoc(sessionRef, seed);
   }
+  // Seed on a fresh project, and migrate an older rule set to the current one:
+  // if the current default content is missing, replace whatever is there.
   const regulations = await getDocs(collection(db, "regulations"));
-  if (regulations.empty) {
+  const hasCurrent = regulations.docs.some((item) => item.id === defaultRegulations[0].id);
+  if (!hasCurrent) {
     const batch = writeBatch(db);
+    regulations.docs.forEach((item) => batch.delete(item.ref));
     defaultRegulations.forEach((regulation) => batch.set(doc(db, "regulations", regulation.id), regulation));
     await batch.commit();
   }

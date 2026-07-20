@@ -1,6 +1,6 @@
 # Global Summit on Emerging Technology and Peace
 
-A graduate Peace Studies classroom simulation in React and TypeScript. Student groups evaluate 10 measurable draft regulations, examine sourced evidence charts, and negotiate a minimum framework.
+A graduate Peace Studies classroom simulation in React and TypeScript. Student groups evaluate 10 measurable draft rules grouped into four themes, examine sourced evidence charts, and negotiate a minimum framework — sized to fit a ~35-minute class slot.
 
 ## Hosting design
 
@@ -21,7 +21,7 @@ Both deployments use the same Firebase records after the same `NEXT_PUBLIC_FIREB
 6. Add the same public variables to Cloudflare and Vercel.
 7. Add both deployment domains to Firebase Authentication’s authorized domains.
 
-The first successful instructor login initializes session `PEACE26` and the 10 regulations. Firestore rules enforce the instructor email independently of the interface.
+The first successful instructor login initializes session `PEACE26` and the four themes. Firestore rules enforce the instructor email independently of the interface.
 
 ## Cloudflare fallback
 

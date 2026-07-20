@@ -18,7 +18,7 @@ export function aggregateResponses(regulations: Regulation[], submissions: Submi
     const priority:Record<Priority,number>={essential:0,negotiable:0,"not-necessary":0};
     const obstacle:Record<Obstacle,number>={sovereignty:0,verification:0,"military-necessity":0,capacity:0,uncertainty:0,"unequal-effects":0,enforcement:0,other:0};
     const revisions:string[]=[],reasoning:string[]=[]; let total=0;
-    for(const s of valid){const x=s.responses[regulation.id];if(!x?.decision||!x.feasibility||!x.priority||!x.obstacle)continue;total++;decision[x.decision]++;feasibility[x.feasibility]++;priority[x.priority]++;obstacle[x.obstacle]++;if(x.proposedRevision?.trim())revisions.push(x.proposedRevision.trim());if(x.reasoning?.trim())reasoning.push(x.reasoning.trim())}
+    for(const s of valid){const x=s.responses[regulation.id];if(!x?.decision||!x.feasibility||!x.priority||!x.obstacles?.length)continue;total++;decision[x.decision]++;feasibility[x.feasibility]++;priority[x.priority]++;for(const o of x.obstacles)obstacle[o]++;if(x.proposedRevision?.trim())revisions.push(x.proposedRevision.trim());if(x.reasoning?.trim())reasoning.push(x.reasoning.trim())}
     const support=pct(decision.keep+decision.revise,total),feasible=pct(feasibility.realistic+feasibility.difficult,total),essential=pct(priority.essential,total),rejected=pct(decision.remove,total);const metrics={support,feasible,essential,rejected};
     return{regulation,total,decision,feasibility,priority,obstacle,revisions,reasoning,...metrics,category:classify({...metrics,decision},total,t)};
   });

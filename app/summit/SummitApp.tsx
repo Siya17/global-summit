@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { GlossaryText } from "../components/GlossaryText";
 import { SiteHeader } from "../components/SiteHeader";
 import { firebaseAvailable, firebaseLoadSession, firebaseSaveSubmission } from "../lib/firebaseBackend";
 import {
@@ -10,6 +11,7 @@ import {
   obstacleLabels,
   priorityLabels,
   type EvidenceBar,
+  type Obstacle,
   type Regulation,
   type RegulationResponse,
   type Responses,
@@ -18,13 +20,15 @@ import {
 
 type Stage = "join" | "review" | "summary" | "submitted";
 
+const MAX_OBSTACLES = 3;
+
 const required = (response?: RegulationResponse) =>
   Boolean(
     response?.decision &&
       response.feasibility &&
       response.priority &&
-      response.obstacle &&
-      (response.obstacle !== "other" || response.otherObstacle?.trim()),
+      response.obstacles?.length &&
+      (!response.obstacles.includes("other") || response.otherObstacle?.trim()),
   );
 
 function ChoiceGroup<T extends string>({
@@ -51,6 +55,43 @@ function ChoiceGroup<T extends string>({
             <span>{label as string}</span>
           </label>
         ))}
+      </div>
+    </fieldset>
+  );
+}
+
+function MultiChoiceGroup<T extends string>({
+  legend,
+  hint,
+  values,
+  options,
+  max,
+  onToggle,
+}: {
+  legend: string;
+  hint: string;
+  values: T[];
+  options: Record<T, string>;
+  max: number;
+  onToggle: (value: T) => void;
+}) {
+  return (
+    <fieldset className="choice-field">
+      <legend>
+        {legend}
+        <span>{hint}</span>
+      </legend>
+      <div className="choice-grid">
+        {Object.entries(options).map(([key, label]) => {
+          const checked = values.includes(key as T);
+          const disabled = !checked && values.length >= max;
+          return (
+            <label key={key} className={checked ? "choice selected" : disabled ? "choice disabled" : "choice"}>
+              <input type="checkbox" checked={checked} disabled={disabled} onChange={() => onToggle(key as T)} />
+              <span>{label as string}</span>
+            </label>
+          );
+        })}
       </div>
     </fieldset>
   );
@@ -111,6 +152,16 @@ export function SummitApp() {
     }));
   };
 
+  const toggleObstacle = (value: Obstacle) => {
+    const selected = response.obstacles || [];
+    const next = selected.includes(value)
+      ? selected.filter((item) => item !== value)
+      : selected.length < MAX_OBSTACLES
+        ? [...selected, value]
+        : selected;
+    update({ obstacles: next });
+  };
+
   async function enter(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -159,7 +210,7 @@ export function SummitApp() {
 
   async function submit() {
     if (completed !== regulations.length) {
-      setError(`Complete all ${regulations.length} regulations before submitting.`);
+      setError(`Complete all ${regulations.length} themes before submitting.`);
       return;
     }
     setBusy(true);
@@ -218,7 +269,7 @@ export function SummitApp() {
               <p className="lede">Join as one equal working group. No countries or political blocs are assigned.</p>
               <div className="callout">
                 <strong>Before you begin</strong>
-                <p>Plan for 35–50 minutes. Discuss each judgment together and nominate one person to enter the response.</p>
+                <p>Plan for about 30 minutes. You will judge four themes, each bundling two or three linked rules. Discuss together and nominate one person to enter the group’s response.</p>
               </div>
             </div>
             <form className="panel join-form" onSubmit={enter}>
@@ -287,7 +338,7 @@ export function SummitApp() {
             <div>
               <p className="eyebrow">Final check · {completed} of {regulations.length} complete</p>
               <h1>Review your framework</h1>
-              <p>Open any regulation to change the group’s judgment before submitting.</p>
+              <p>Open any theme to change the group’s judgment before submitting.</p>
             </div>
             <button className="button primary" onClick={submit} disabled={busy || completed !== regulations.length}>{busy ? "Submitting…" : "Submit framework"}</button>
           </section>
@@ -323,7 +374,7 @@ export function SummitApp() {
         <SiteHeader compact />
         <div className="progress-wrap">
           <div className="progress-meta">
-            <span>Regulation {index + 1} of {regulations.length}</span>
+            <span>Theme {index + 1} of {regulations.length}</span>
             <span>{completed} complete</span>
           </div>
           <div className="progress"><span style={{ width: `${(completed / regulations.length) * 100}%` }} /></div>
@@ -333,11 +384,21 @@ export function SummitApp() {
             <div className="regulation-title">
               <span>{String(current.number).padStart(2, "0")}</span>
               <div>
-                <p className="eyebrow">Draft regulation</p>
+                <p className="eyebrow">Theme {current.number} of {regulations.length}</p>
                 <h1>{current.title}</h1>
               </div>
             </div>
-            <blockquote>{current.text}</blockquote>
+            <blockquote><GlossaryText text={current.text} /></blockquote>
+            {current.provisions?.length ? (
+              <ol className="provision-list">
+                {current.provisions.map((provision, provisionIndex) => (
+                  <li key={provisionIndex}>
+                    <span aria-hidden="true">{current.number}.{provisionIndex + 1}</span>
+                    <p><GlossaryText text={provision} /></p>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
             <div className="evidence-card">
               <div className="evidence-heading">
                 <span aria-hidden="true">◈</span>
@@ -362,13 +423,13 @@ export function SummitApp() {
           <section className="response-panel" aria-label={`Response to regulation ${current.number}`}>
             <div className="response-heading">
               <p className="eyebrow">Your group’s judgment</p>
-              <p>Discuss first. Select one answer for each required field.</p>
+              <p>Discuss first, then give one judgment for the whole theme. Pick one answer for A–C, and up to three obstacles for D.</p>
             </div>
             <ChoiceGroup legend="A. Decision" value={response.decision} options={decisionLabels} onChange={(value) => update({ decision: value })} />
             <ChoiceGroup legend="B. International feasibility" value={response.feasibility} options={feasibilityLabels} onChange={(value) => update({ feasibility: value })} />
             <ChoiceGroup legend="C. Priority" value={response.priority} options={priorityLabels} onChange={(value) => update({ priority: value })} />
-            <ChoiceGroup legend="D. Main obstacle" value={response.obstacle} options={obstacleLabels} onChange={(value) => update({ obstacle: value })} />
-            {response.obstacle === "other" && <label>Describe the other obstacle<input value={response.otherObstacle || ""} onChange={(event) => update({ otherObstacle: event.target.value })} maxLength={100} /></label>}
+            <MultiChoiceGroup legend="D. Main obstacles" hint="Pick up to 3" values={response.obstacles || []} options={obstacleLabels} max={MAX_OBSTACLES} onToggle={toggleObstacle} />
+            {response.obstacles?.includes("other") && <label>Describe the other obstacle<input value={response.otherObstacle || ""} onChange={(event) => update({ otherObstacle: event.target.value })} maxLength={100} /></label>}
             <label>
               E. Proposed revision <span className="optional">Optional</span>
               <textarea value={response.proposedRevision || ""} onChange={(event) => update({ proposedRevision: event.target.value })} placeholder="How would you rewrite this regulation?" rows={4} />
