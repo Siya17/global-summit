@@ -96,7 +96,10 @@ export async function firebaseSaveSubmission(input: {
   const id = input.id || submissionKey(session.id, input.groupName);
   const ref = doc(db, "submissions", id);
   const existing = await getDoc(ref);
-  if (existing.exists() && existing.data().ownerUid !== user.uid) {
+  const existingOwner = existing.exists() ? (existing.data().ownerUid as string | undefined) : undefined;
+  // An empty ownerUid means the instructor released this group's device lock,
+  // so a new device may adopt it (see the "release" admin action below).
+  if (existing.exists() && existingOwner && existingOwner !== user.uid) {
     throw new Error("This group name is already being used on another device.");
   }
   const completed = regulations.filter((regulation) => {
@@ -126,6 +129,25 @@ export async function firebaseSaveSubmission(input: {
   });
   await batch.commit();
   return { id };
+}
+
+// Looks for an existing submission under this group name so a device with no
+// local draft (a new laptop, a released lock, a cleared browser) resumes from
+// the group's last saved answers instead of silently starting blank and
+// overwriting them on the next save. Returns null if there is nothing to
+// resume, or if the group name is still locked to a different device.
+export async function firebaseLoadDraft(code: string, groupName: string) {
+  const trimmed = groupName.trim();
+  if (!trimmed) return null;
+  const user = await anonymousUser();
+  const { db } = getServices();
+  const { session } = await firebaseLoadSession(code);
+  const id = submissionKey(session.id, trimmed);
+  const snap = await getDoc(doc(db, "submissions", id));
+  if (!snap.exists()) return null;
+  const data = snap.data() as Submission & { ownerUid?: string };
+  if (data.ownerUid && data.ownerUid !== user.uid) return null;
+  return { id, responses: data.responses };
 }
 
 export async function firebaseSignInInstructor(email: string, password: string) {
@@ -186,6 +208,7 @@ type AdminAction =
   | { action: "session"; status?: "open" | "closed"; thresholds?: Thresholds; framework?: number[] }
   | { action: "regulation"; regulation: Regulation }
   | { action: "delete"; submissionId: string }
+  | { action: "release"; submissionId: string }
   | { action: "reset" };
 
 export async function firebaseAdminAction(code: string, body: AdminAction) {
@@ -224,6 +247,14 @@ export async function firebaseAdminAction(code: string, body: AdminAction) {
     const batch = writeBatch(db);
     batch.delete(doc(db, "submissions", body.submissionId));
     batch.delete(doc(db, "privateSubmissions", body.submissionId));
+    await batch.commit();
+  } else if (body.action === "release") {
+    // Clears the device lock without touching their saved answers, so the
+    // group can resume from any device and firebaseSaveSubmission's
+    // ownership check treats the submission as unclaimed.
+    const batch = writeBatch(db);
+    batch.update(doc(db, "submissions", body.submissionId), { ownerUid: "" });
+    batch.update(doc(db, "privateSubmissions", body.submissionId), { ownerUid: "" });
     await batch.commit();
   } else if (body.action === "reset") {
     const publicSnaps = await getDocs(query(collection(db, "submissions"), where("sessionId", "==", session.id)));

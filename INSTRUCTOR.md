@@ -6,6 +6,13 @@ are **not** software developers. You do **not** need to understand the code to r
 If you only read one thing: **the activity is a website with three pages** — one for students,
 one for the live results, and one for you. Everything else below is detail.
 
+> **One action needed before Release will work.** This guide now covers a new **Release** button
+> (Section 6) that lets a group switch devices without losing their answers. It needs a small,
+> already-made update to `firestore.rules` to be **re-published** in the Firebase console — the
+> exact same one-click "paste and Publish" step from your original setup (Firebase setup, Step 5
+> in `README.md`), just with the already-updated file. Nothing else changed requires this step;
+> everything else in this update works immediately.
+
 ---
 
 ## 1. What the activity is
@@ -60,6 +67,13 @@ When all four themes are done, the group hits **Submit**. They can reopen and ed
 device/browser** while the session is open — resubmitting **updates** their entry, it does not
 create a duplicate.
 
+> **Their work is saved as they go, not just at the end.** The page quietly saves progress in the
+> background a couple of seconds after each answer, and again every time a group moves to the next
+> theme — you'll see a small "Saved" note near the top of the page. If a laptop dies or a tab
+> closes mid-activity, nothing beyond the last few seconds is lost, even if the group never
+> pressed Submit. See Section 6 ("Groups") for what to do if a group needs to continue on a
+> **different** device.
+
 **Floating explanations:** difficult words (for example *biometric*, *dual-use*, *autonomous
 weapon*) appear with a **dotted underline**. Hovering, tapping, or keyboard-focusing the word
 shows a one-sentence plain definition. You can edit or add these — see Section 7.
@@ -79,6 +93,11 @@ add these to the end of it:
 
 The **session code** ties them together. The default code is **`PEACE26`**. Students type it on
 the `/summit` page. You can create more codes for different classes (Section 6).
+
+You don't need to remember the Dashboard address separately: once you're signed in to the
+Instructor Desk, an **"Open live dashboard ↗"** link sits at the top of every tab and opens the
+Dashboard for your current session code in a new tab — handy for projecting it while you keep the
+Instructor Desk open on your own laptop.
 
 ---
 
@@ -169,9 +188,17 @@ Go to `/instructor`, sign in with your instructor email and password. You will s
     rewrites — useful for
     grading or research.
   - **Reset this session** — deletes all responses for that code. Use only to clear a test run.
-- **Groups** — see who has joined, whether they are a draft or submitted, and delete accidental
-  duplicates or test entries.
-- **Content** — **edit any rule and its evidence without touching code** (see Section 7).
+- **Groups** — see who has joined, whether they are a draft or submitted.
+  - **Release** *(only when Firebase is connected — see `README.md`)*: frees a group's name so
+    they can continue on a **different device**, without losing anything they already saved. Use
+    this if a laptop dies, a student switches devices, or a browser gets wiped mid-class — normally
+    a group's name is locked to the one device it started on, precisely so no one else can
+    accidentally hijack it; Release lifts that lock on purpose. The group then re-enters the same
+    code and the same group name on the new device and picks up where they left off.
+  - **Delete** — permanently removes a group's response. Use only for accidental duplicates or
+    test entries; unlike Release, this cannot be undone.
+- **Content** — **edit any theme, its numbered rules, its evidence, and its sources — without
+  touching code** (see Section 7).
 - **Thresholds** — the percentages that decide the Dashboard categories and which rules enter the
   Minimum Framework. The defaults are sensible; only change them if you want to make agreement
   easier or harder to reach. Every number is shown to students on the Dashboard, so the logic
@@ -184,20 +211,28 @@ Go to `/instructor`, sign in with your instructor email and password. You will s
 You have two ways to change wording. **The first needs no code.**
 
 ### A. Live, through the Instructor Desk (recommended)
-Instructor Desk → **Content** tab → click any rule. You can edit its title, the rule text, the
-"Why it may be needed" / "Practical challenge" notes, the data point, and the source. Save, and
-it updates for everyone immediately.
+Instructor Desk → **Content** tab → click any theme. You can edit:
+- its title and one-line summary,
+- every **numbered rule** students see (add, edit, or remove a rule with the **+ / ×** buttons —
+  at least one rule must remain),
+- the "Why it may be needed" / "Practical challenge" notes and the data point, and
+- its **sources** (add, edit, or remove as many as you like, same **+ / ×** buttons).
+
+Click **Save theme**. If something goes wrong (for example, a lost connection), the editor stays
+open with everything you typed still in the boxes and shows what went wrong — it will not
+silently discard your edits. Saved changes update for everyone immediately.
 
 > Note: content edits apply to the shared database for sessions that already exist. Brand-new
 > sessions start from the built-in defaults in the file below.
 
-### B. In the files (for the default text of new sessions)
-- **The four themes, their provisions, and evidence:** `app/lib/regulations.ts`. Each theme has a
-  `title`, a one-line `text` summary, a `provisions` list (the 2–3 short rules), the two evidence
+### B. In the files (only needed for the built-in starting text)
+- **The four themes, their rules, and evidence:** `app/lib/regulations.ts`. Each theme has a
+  `title`, a one-line `text` summary, a `provisions` list (the numbered rules), the two evidence
   notes, an `evidenceDataPoint`, the little `evidenceBars` (the chart), and `sources`. Edit the
   text between the quotation marks. Keep the concrete numbers (like "30 days" or "at least 1,000")
-  — they are what make each rule debatable. **The provision bullets can only be edited here** (the
-  Instructor Desk edits the summary and evidence, not the individual provisions).
+  — they are what make each rule debatable. This file only matters for **brand-new** sessions or a
+  database that has never been opened in the Instructor Desk — once a session exists, edit it
+  live through Option A instead.
 - **The floating word definitions:** `app/lib/glossary.ts`. Each entry has a `term` and a plain
   `definition`. To explain a new word, copy an existing block and change the two lines. `aliases`
   lets one definition also cover plural forms (e.g. "audit" and "audits"). Any listed word is
@@ -230,17 +265,31 @@ After editing files, if the site is running in preview mode (Option B), stop it 
   case-sensitive, but spelling matters) and that the session exists in your Instructor Desk.
 - **A student sees "This summit is currently closed."** You (or a colleague) clicked
   *Close submissions*. Reopen it in the Session tab.
-- **"This group name is already being used on another device."** Two devices tried to submit under
-  the same group name. Have the second device pick a slightly different name.
-- **A group lost their work.** Drafts are saved in **that browser on that device**. If they return
-  on the **same** device and browser and re-enter the same code and group name, their draft
-  reloads. It will not transfer to a different computer.
+- **"This group name is already being used on another device."** Normal and by design — a group's
+  name locks to whichever device it started on, so a second device can't accidentally overwrite
+  it. If it's genuinely the *same* group needing to switch devices (a dead laptop, a new browser),
+  go to Instructor Desk → **Groups** → **Release** next to their name, then have them re-enter the
+  same code and group name on the new device — their saved answers will still be there. If it's
+  actually two different groups that picked the same name, have the second group use a different
+  name instead. *(Release needs Firebase connected — see `README.md`. In the Cloudflare/D1
+  fallback mode there is no device lock at all, so this message never appears there.)*
+- **A group's laptop died or they lost their tab mid-activity.** Their work is safe: progress
+  autosaves in the background every few seconds and at every "Save & continue," not just at the
+  final Submit (see Section 2). If they're back on the **same** device and browser, re-entering the
+  same code and group name reloads it instantly. If they need a **different** device, use
+  **Release** above first, then re-enter — either way nothing beyond the last few seconds is lost.
 - **The Dashboard looks empty.** Nothing counts until a group presses **Submit** with all four
   themes complete. Saved drafts do not appear in the results.
 - **The Dashboard is not updating.** It refreshes every 15 seconds; there is also a
   **"Refresh results"** button. Make sure the code in the address bar matches your session.
 - **I forgot my instructor password.** It lives in Firebase (Option A) — reset it in the Firebase
   console. In preview mode (Option B) it is in your `.env.local` file.
+- **A student's screen says "Not saved — check connection."** Their answers so far are still safe
+  on their screen and will keep trying in the background; this just means the last autosave
+  attempt failed (usually a dropped Wi-Fi connection). Have them check their connection — the next
+  successful save (or pressing Submit) clears it.
+- **Clicking Release shows a permission error.** The updated `firestore.rules` hasn't been
+  re-published yet for this Firebase project — see the note near the top of this guide.
 
 ---
 
@@ -265,3 +314,4 @@ developer to replace `tests/rendered-html.test.mjs`.
 | The instructor controls | `app/instructor/InstructorApp.tsx` |
 | Colours and styling | `app/globals.css` |
 | Hosting / Firebase setup | `README.md` |
+| Who can read/write what in Firebase (incl. the Release permission) | `firestore.rules` |

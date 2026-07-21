@@ -8,7 +8,7 @@ service cloud.firestore {
 
     function instructor() {
       return signedIn()
-        && request.auth.token.email == "replace-with-your-email@example.com";
+        && request.auth.token.email == "polishchuk.anastasiya@gmail.com";
     }
 
     match /sessions/{sessionId} {
@@ -21,21 +21,26 @@ service cloud.firestore {
       allow write: if instructor();
     }
 
+    function ownsOrClaims() {
+      return signedIn()
+        && (resource.data.ownerUid == request.auth.uid || resource.data.ownerUid == "")
+        && request.resource.data.ownerUid == request.auth.uid;
+    }
+
     match /submissions/{submissionId} {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if signedIn()
-        && resource.data.ownerUid == request.auth.uid
-        && request.resource.data.ownerUid == request.auth.uid;
+      // The instructor can release a group's device lock (clear ownerUid) so a
+      // new device can claim it below. Everyone else may only update a
+      // submission they already own, or adopt one the instructor released.
+      allow update: if instructor() || ownsOrClaims();
       allow delete: if instructor();
     }
 
     match /privateSubmissions/{submissionId} {
       allow read, delete: if instructor();
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if signedIn()
-        && resource.data.ownerUid == request.auth.uid
-        && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if instructor() || ownsOrClaims();
     }
   }
 }

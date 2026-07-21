@@ -53,6 +53,11 @@ account.
 This app comes with a ready-made rules file that makes sure only your instructor account can
 edit content, and that students can only see their own submissions plus the public results.
 
+> **Already done this once and just pulled a newer version of the project?** The rules occasionally
+> change (for example, to support the instructor's "Release a group" button). Your email is likely
+> already filled in from before, so you can skip straight to step 3 below — just re-copy the
+> **current** contents of `firestore.rules` and re-publish them, the same way as the first time.
+
 1. Open the file `firestore.rules` in this project folder, in any text editor (Notepad works).
 2. Find this line near the top:
    ```

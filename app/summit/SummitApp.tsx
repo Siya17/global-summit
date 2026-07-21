@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GlossaryText } from "../components/GlossaryText";
 import { SiteHeader } from "../components/SiteHeader";
-import { firebaseAvailable, firebaseLoadSession, firebaseSaveSubmission } from "../lib/firebaseBackend";
+import { firebaseAvailable, firebaseLoadDraft, firebaseLoadSession, firebaseSaveSubmission } from "../lib/firebaseBackend";
 import {
   decisionLabels,
   feasibilityLabels,
@@ -116,6 +116,26 @@ function EvidenceBars({ bars }: { bars?: EvidenceBar[] }) {
   );
 }
 
+// A device with no local draft (a new laptop, a released device lock, a
+// cleared browser) resumes from the group's last saved answers instead of
+// silently starting blank — which would otherwise overwrite real progress on
+// the very next save. Never blocks joining: any failure just means "start
+// fresh," the same as before this existed.
+async function loadRemoteDraft(code: string, groupName: string) {
+  const trimmed = groupName.trim();
+  if (!trimmed) return null;
+  try {
+    if (firebaseAvailable()) return await firebaseLoadDraft(code, trimmed);
+    const result = await fetch(`/api/submissions?code=${encodeURIComponent(code)}`);
+    if (!result.ok) return null;
+    const body = (await result.json()) as { submissions?: { id: string; groupName: string; responses: Responses }[] };
+    const match = body.submissions?.find((item) => item.groupName.trim().toLocaleLowerCase() === trimmed.toLocaleLowerCase());
+    return match ? { id: match.id, responses: match.responses } : null;
+  } catch {
+    return null;
+  }
+}
+
 export function SummitApp() {
   const [stage, setStage] = useState<Stage>("join");
   const [code, setCode] = useState("PEACE26");
@@ -128,6 +148,8 @@ export function SummitApp() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [submissionId, setSubmissionId] = useState("");
+  const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const autosaveSaving = useRef(false);
 
   const completed = useMemo(
     () => regulations.filter((regulation) => required(responses[regulation.id])).length,
@@ -181,10 +203,19 @@ export function SummitApp() {
       setSession(data.session);
       setRegulations(data.regulations);
       const saved = localStorage.getItem(`summit-draft:${normalized}:${groupName.toLocaleLowerCase()}`);
-      if (saved) {
-        const draft = JSON.parse(saved);
-        setResponses(draft.responses || {});
-        setSubmissionId(draft.submissionId || "");
+      const localDraft = saved ? JSON.parse(saved) : null;
+      if (localDraft?.responses && Object.keys(localDraft.responses).length) {
+        setResponses(localDraft.responses);
+        setSubmissionId(localDraft.submissionId || "");
+      } else {
+        // No usable draft on this device — check whether this group already
+        // has saved progress on the server (autosave from another device,
+        // or this device after the instructor released a locked group).
+        const remote = await loadRemoteDraft(normalized, groupName);
+        if (remote) {
+          setResponses(remote.responses || {});
+          setSubmissionId(remote.id);
+        }
       }
       setCode(normalized);
       setStage("review");
@@ -201,12 +232,72 @@ export function SummitApp() {
       return;
     }
     setError("");
+    flushAutosave();
     if (index === regulations.length - 1) setStage("summary");
     else {
       setIndex((value) => value + 1);
       window.scrollTo(0, 0);
     }
   }
+
+  async function persist(submittedFlag: boolean) {
+    if (firebaseAvailable()) {
+      const result = await firebaseSaveSubmission({
+        code,
+        id: submissionId || undefined,
+        groupName,
+        participantNames: names,
+        responses,
+        submitted: submittedFlag,
+      });
+      return result.id;
+    }
+    const result = await fetch("/api/submissions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        code,
+        id: submissionId || undefined,
+        groupName,
+        participantNames: names,
+        responses,
+        submitted: submittedFlag,
+      }),
+    });
+    const body = await result.json();
+    if (!result.ok) throw new Error(body.error);
+    return body.submission.id as string;
+  }
+
+  // Saves progress in the background as the group works, so a crashed laptop
+  // or a closed tab never costs more than a couple of seconds of answers.
+  // Silent on failure by design — a stalled autosave should never interrupt
+  // deliberation; the status text is the only signal, and Submit still runs
+  // its own explicit save with a real error message.
+  async function flushAutosave() {
+    if (autosaveSaving.current || !session) return;
+    if (!groupName.trim() || !Object.keys(responses).length) return;
+    autosaveSaving.current = true;
+    setAutosaveState("saving");
+    try {
+      const id = await persist(false);
+      setSubmissionId(id);
+      setAutosaveState("saved");
+    } catch {
+      setAutosaveState("error");
+    } finally {
+      autosaveSaving.current = false;
+    }
+  }
+
+  useEffect(() => {
+    if (!session || !groupName.trim() || !Object.keys(responses).length) return;
+    const timer = setTimeout(() => {
+      flushAutosave();
+    }, 2500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responses]);
 
   async function submit() {
     if (completed !== regulations.length) {
@@ -216,34 +307,7 @@ export function SummitApp() {
     setBusy(true);
     setError("");
     try {
-      let id: string;
-      if (firebaseAvailable()) {
-        const result = await firebaseSaveSubmission({
-          code,
-          id: submissionId || undefined,
-          groupName,
-          participantNames: names,
-          responses,
-          submitted: true,
-        });
-        id = result.id;
-      } else {
-        const result = await fetch("/api/submissions", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            code,
-            id: submissionId || undefined,
-            groupName,
-            participantNames: names,
-            responses,
-            submitted: true,
-          }),
-        });
-        const body = await result.json();
-        if (!result.ok) throw new Error(body.error);
-        id = body.submission.id;
-      }
+      const id = await persist(true);
       setSubmissionId(id);
       localStorage.setItem(
         `summit-draft:${code}:${groupName.toLocaleLowerCase()}`,
@@ -375,7 +439,14 @@ export function SummitApp() {
         <div className="progress-wrap">
           <div className="progress-meta">
             <span>Theme {index + 1} of {regulations.length}</span>
-            <span>{completed} complete</span>
+            <span className="progress-status">
+              {autosaveState !== "idle" && (
+                <span className={autosaveState === "error" ? "autosave-flag error" : "autosave-flag"}>
+                  {autosaveState === "saving" ? "Saving…" : autosaveState === "saved" ? "Saved" : "Not saved"}
+                </span>
+              )}
+              {completed} complete
+            </span>
           </div>
           <div className="progress"><span style={{ width: `${(completed / regulations.length) * 100}%` }} /></div>
         </div>
@@ -440,7 +511,7 @@ export function SummitApp() {
             </label>
             {error && <p className="error" role="alert">{error}</p>}
             <div className="form-navigation">
-              <button className="button secondary" disabled={index === 0} onClick={() => { setIndex((value) => value - 1); setError(""); window.scrollTo(0, 0); }}>← Back</button>
+              <button className="button secondary" disabled={index === 0} onClick={() => { setIndex((value) => value - 1); setError(""); flushAutosave(); window.scrollTo(0, 0); }}>← Back</button>
               <button className="button primary" onClick={next}>{index === regulations.length - 1 ? "Review responses" : "Save & continue →"}</button>
             </div>
           </section>
