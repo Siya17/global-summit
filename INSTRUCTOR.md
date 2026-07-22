@@ -188,6 +188,18 @@ Go to `/instructor`, sign in with your instructor email and password. You will s
     rewrites — useful for
     grading or research.
   - **Reset this session** — deletes all responses for that code. Use only to clear a test run.
+  - **Individual make-up session** — a checkbox next to "Create another session" for a student who missed
+    class. Give it its own short code (e.g. `PEACE26-MAKEUP`). It behaves like any other session — own
+    code, own open/closed state — except:
+    - The student works through the four themes **alone** instead of as a group.
+    - **F. Brief reasoning** becomes **required** for every theme (not optional), since there is no group
+      discussion behind the answer — this is what you grade.
+    - Its responses **never appear** on the main class Dashboard or Minimum Framework, because each
+      session code has its own separate results. Open `/dashboard?code=PEACE26-MAKEUP` (or use **Export**
+      below) to see just that student's answers.
+    - Because it has its own open/closed state, closing your main class session does **not** close the
+      make-up session — leave it open until the make-up work is turned in, then close and export it like
+      any other session.
 - **Groups** — see who has joined, whether they are a draft or submitted.
   - **Release** *(only when Firebase is connected — see `README.md`)*: frees a group's name so
     they can continue on a **different device**, without losing anything they already saved. Use

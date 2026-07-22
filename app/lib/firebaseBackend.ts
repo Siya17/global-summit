@@ -104,9 +104,9 @@ export async function firebaseSaveSubmission(input: {
   }
   const completed = regulations.filter((regulation) => {
     const response = input.responses[regulation.id];
-    return response?.decision && response.feasibility && response.priority && response.obstacles?.length && (!response.obstacles.includes("other") || response.otherObstacle?.trim());
+    return response?.decision && response.feasibility && response.priority && response.obstacles?.length && (!response.obstacles.includes("other") || response.otherObstacle?.trim()) && (!session.isMakeup || response.reasoning?.trim());
   }).length;
-  if (input.submitted && completed !== regulations.length) throw new Error("Complete every required response before submitting.");
+  if (input.submitted && completed !== regulations.length) throw new Error(session.isMakeup ? "Complete every required response, including your written reasoning for each theme, before submitting." : "Complete every required response before submitting.");
   const now = new Date().toISOString();
   const submission: Submission & { ownerUid: string } = {
     id,
@@ -172,6 +172,7 @@ export async function firebaseEnsureSeed() {
       sessionCode: "PEACE26",
       title: "Global Summit on Emerging Technology and Peace",
       status: "open",
+      isMakeup: false,
       thresholds: defaultThresholds,
       framework: [],
       createdAt: new Date().toISOString(),
@@ -204,7 +205,7 @@ export async function firebaseLoadAdmin(code: string) {
 }
 
 type AdminAction =
-  | { action: "create"; code: string; title?: string }
+  | { action: "create"; code: string; title?: string; isMakeup?: boolean }
   | { action: "session"; status?: "open" | "closed"; thresholds?: Thresholds; framework?: number[] }
   | { action: "regulation"; regulation: Regulation }
   | { action: "delete"; submissionId: string }
@@ -224,6 +225,7 @@ export async function firebaseAdminAction(code: string, body: AdminAction) {
       sessionCode: nextCode,
       title: body.title?.trim() || "Global Summit on Emerging Technology and Peace",
       status: "open",
+      isMakeup: Boolean(body.isMakeup),
       thresholds: defaultThresholds,
       framework: [],
       createdAt: new Date().toISOString(),

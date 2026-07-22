@@ -28,6 +28,7 @@ export function InstructorApp() {
   const [tab, setTab] = useState("session");
   const [editing, setEditing] = useState<Regulation | null>(null);
   const [newCode, setNewCode] = useState("");
+  const [newMakeup, setNewMakeup] = useState(false);
   // Edits in progress on the Thresholds tab, kept separate from `data` so an
   // unrelated reload triggered elsewhere (deleting a group, refreshing
   // status) never silently discards numbers the instructor hasn't saved yet.
@@ -136,6 +137,7 @@ export function InstructorApp() {
   }
 
   const submitted = useMemo(() => data?.submissions.filter((s) => s.submitted).length || 0, [data]);
+  const noun = data?.session.isMakeup ? "student" : "group";
 
   if (!data) {
     return (
@@ -170,7 +172,7 @@ export function InstructorApp() {
         <SiteHeader compact />
         <header className="admin-head">
           <div>
-            <p className="eyebrow">Instructor desk · {code}</p>
+            <p className="eyebrow">Instructor desk · {code}{data.session.isMakeup ? " · Individual make-up" : ""}</p>
             <h1>{data.session.title}</h1>
           </div>
           <div className="admin-head-actions">
@@ -189,7 +191,7 @@ export function InstructorApp() {
           <section className="admin-grid">
             <div className="panel">
               <p className="eyebrow">Live controls</p>
-              <h2>{submitted} groups submitted</h2>
+              <h2>{submitted} {noun}{submitted === 1 ? "" : "s"} submitted</h2>
               <p>{data.submissions.length - submitted} saved draft{data.submissions.length - submitted === 1 ? "" : "s"}</p>
               <button className={`button ${data.session.status === "open" ? "danger" : "primary"}`} onClick={() => action({ action: "session", status: data.session.status === "open" ? "closed" : "open" })}>
                 {data.session.status === "open" ? "Close submissions" : "Open submissions"}
@@ -199,7 +201,17 @@ export function InstructorApp() {
             <div className="panel">
               <p className="eyebrow">Create another session</p>
               <label>New short code<input value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase())} placeholder="e.g. JULY26" maxLength={10} /></label>
-              <button className="button secondary" onClick={async () => { await action({ action: "create", code: newCode }, false); if (newCode) { await load(newCode); setNewCode(""); } }}>Create &amp; open</button>
+              <label className="choice" style={{ marginBottom: 14 }}>
+                <input type="checkbox" checked={newMakeup} onChange={(e) => setNewMakeup(e.target.checked)} />
+                <span>Individual make-up session</span>
+              </label>
+              <p className="form-note">
+                For a student who missed class. It opens with its own code, stays open independently of {code}&rsquo;s open/closed state, is completed
+                solo, requires a written reason for every theme, and is kept out of any class dashboard/framework — export it separately for grading.
+              </p>
+              <button className="button secondary" onClick={async () => { await action({ action: "create", code: newCode, isMakeup: newMakeup }, false); if (newCode) { await load(newCode); setNewCode(""); setNewMakeup(false); } }}>
+                {newMakeup ? "Create make-up session" : "Create & open"}
+              </button>
             </div>
             <div className="panel">
               <p className="eyebrow">Class record</p>
@@ -217,8 +229,8 @@ export function InstructorApp() {
           <section className="admin-section">
             <div className="section-heading">
               <div>
-                <h2>Submitted groups</h2>
-                <p>{firebaseAvailable() ? "Release a group stuck on a lost or replaced device so they can rejoin from a new one — their answers stay. Delete only accidental duplicates or test entries." : "Delete only accidental duplicates or test entries."}</p>
+                <h2>Submitted {noun}s</h2>
+                <p>{firebaseAvailable() ? `Release a ${noun} stuck on a lost or replaced device so they can rejoin from a new one — their answers stay. Delete only accidental duplicates or test entries.` : "Delete only accidental duplicates or test entries."}</p>
               </div>
               <button className="button secondary" onClick={() => load()}>Refresh</button>
             </div>
@@ -242,7 +254,7 @@ export function InstructorApp() {
                     <button className="danger" onClick={() => { if (confirm(`Delete ${s.groupName}'s response? This cannot be undone.`)) action({ action: "delete", submissionId: s.id }); }}>Delete</button>
                   </div>
                 </div>
-              )) : <p className="empty-inline">No groups have joined this session yet.</p>}
+              )) : <p className="empty-inline">No {noun}s have joined this session yet.</p>}
             </div>
           </section>
         )}

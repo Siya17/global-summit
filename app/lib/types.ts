@@ -8,7 +8,7 @@ export type Regulation = { id: string; number: number; title: string; text: stri
 export type RegulationResponse = { decision?: Decision; feasibility?: Feasibility; priority?: Priority; obstacles?: Obstacle[]; otherObstacle?: string; proposedRevision?: string; reasoning?: string };
 export type Responses = Record<string, RegulationResponse>;
 export type Thresholds = { consensusSupport: number; consensusFeasibility: number; necessaryEssential: number; revisionNeeded: number; contestedMinimum: number; lowPriorityEssential: number; frameworkSupport: number; frameworkEssential: number; frameworkRejectionMax: number };
-export type SummitSession = { id: string; sessionCode: string; title: string; status: "open" | "closed"; thresholds: Thresholds; framework: number[]; createdAt: string };
+export type SummitSession = { id: string; sessionCode: string; title: string; status: "open" | "closed"; isMakeup?: boolean; thresholds: Thresholds; framework: number[]; createdAt: string };
 export type Submission = { id: string; sessionId: string; groupName: string; participantNames?: string; responses: Responses; submitted: boolean; createdAt: string; updatedAt: string };
 
 export const decisionLabels: Record<Decision, string> = { keep: "Keep as written", revise: "Keep, but revise", remove: "Remove", unsure: "Unsure" };

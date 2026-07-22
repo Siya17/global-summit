@@ -22,13 +22,14 @@ type Stage = "join" | "review" | "summary" | "submitted";
 
 const MAX_OBSTACLES = 3;
 
-const required = (response?: RegulationResponse) =>
+const required = (response?: RegulationResponse, requireReasoning = false) =>
   Boolean(
     response?.decision &&
       response.feasibility &&
       response.priority &&
       response.obstacles?.length &&
-      (!response.obstacles.includes("other") || response.otherObstacle?.trim()),
+      (!response.obstacles.includes("other") || response.otherObstacle?.trim()) &&
+      (!requireReasoning || response.reasoning?.trim()),
   );
 
 function ChoiceGroup<T extends string>({
@@ -150,10 +151,15 @@ export function SummitApp() {
   const [submissionId, setSubmissionId] = useState("");
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const autosaveSaving = useRef(false);
+  // A cheap, best-effort lookup so the join screen can already read "individual
+  // make-up" before the student submits the form — never blocks joining, and
+  // the authoritative check happens again in enter() once the session loads.
+  const [joinPreview, setJoinPreview] = useState<{ isMakeup: boolean } | null>(null);
 
+  const isMakeup = Boolean(session?.isMakeup);
   const completed = useMemo(
-    () => regulations.filter((regulation) => required(responses[regulation.id])).length,
-    [regulations, responses],
+    () => regulations.filter((regulation) => required(responses[regulation.id], isMakeup)).length,
+    [regulations, responses, isMakeup],
   );
   const current = regulations[index];
   const response = current ? responses[current.id] || {} : {};
@@ -183,6 +189,29 @@ export function SummitApp() {
         : selected;
     update({ obstacles: next });
   };
+
+  useEffect(() => {
+    if (stage !== "join" || !code.trim()) {
+      setJoinPreview(null);
+      return;
+    }
+    const normalized = code.trim().toUpperCase();
+    const timer = setTimeout(async () => {
+      try {
+        let data: { session: SummitSession };
+        if (firebaseAvailable()) data = await firebaseLoadSession(normalized);
+        else {
+          const result = await fetch(`/api/session?code=${encodeURIComponent(normalized)}`);
+          if (!result.ok) return setJoinPreview(null);
+          data = await result.json();
+        }
+        setJoinPreview({ isMakeup: Boolean(data.session.isMakeup) });
+      } catch {
+        setJoinPreview(null);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [code, stage]);
 
   async function enter(event: React.FormEvent) {
     event.preventDefault();
@@ -227,8 +256,8 @@ export function SummitApp() {
   }
 
   function next() {
-    if (!required(response)) {
-      setError("Complete the four required judgments before continuing.");
+    if (!required(response, isMakeup)) {
+      setError(isMakeup ? "Complete the four required judgments and your written reasoning before continuing." : "Complete the four required judgments before continuing.");
       return;
     }
     setError("");
@@ -301,7 +330,7 @@ export function SummitApp() {
 
   async function submit() {
     if (completed !== regulations.length) {
-      setError(`Complete all ${regulations.length} themes before submitting.`);
+      setError(isMakeup ? `Complete all ${regulations.length} themes, including your written reasoning, before submitting.` : `Complete all ${regulations.length} themes before submitting.`);
       return;
     }
     setBusy(true);
@@ -330,10 +359,14 @@ export function SummitApp() {
             <div>
               <p className="eyebrow">Student delegation desk</p>
               <h1>Enter your summit session</h1>
-              <p className="lede">Join as one equal working group. No countries or political blocs are assigned.</p>
+              <p className="lede">{joinPreview?.isMakeup ? "Complete this activity individually as make-up for a missed class session." : "Join as one equal working group. No countries or political blocs are assigned."}</p>
               <div className="callout">
                 <strong>Before you begin</strong>
-                <p>Plan for about 30 minutes. You will judge four themes, each bundling two or three linked rules. Discuss together and nominate one person to enter the group’s response.</p>
+                <p>
+                  {joinPreview?.isMakeup
+                    ? "Plan for about 30 minutes. You will judge four themes on your own, each bundling two or three linked rules. Since there’s no group to discuss with, you’ll also write a short reason for each theme."
+                    : "Plan for about 30 minutes. You will judge four themes, each bundling two or three linked rules. Discuss together and nominate one person to enter the group’s response."}
+                </p>
               </div>
             </div>
             <form className="panel join-form" onSubmit={enter}>
@@ -342,13 +375,15 @@ export function SummitApp() {
                 <input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} maxLength={10} required />
               </label>
               <label>
-                Group name or number
-                <input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="e.g. Group 4" required />
+                {joinPreview?.isMakeup ? "Your name" : "Group name or number"}
+                <input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={joinPreview?.isMakeup ? "e.g. Jordan Lee" : "e.g. Group 4"} required />
               </label>
-              <label>
-                Participant names <span className="optional">Optional</span>
-                <textarea value={names} onChange={(event) => setNames(event.target.value)} placeholder="Separate names with commas" rows={3} />
-              </label>
+              {!joinPreview?.isMakeup && (
+                <label>
+                  Participant names <span className="optional">Optional</span>
+                  <textarea value={names} onChange={(event) => setNames(event.target.value)} placeholder="Separate names with commas" rows={3} />
+                </label>
+              )}
               {error && <p className="error" role="alert">{error}</p>}
               <button className="button primary wide" disabled={busy}>{busy ? "Checking session…" : "Begin deliberation →"}</button>
               <p className="form-note">No visible student account is required. A recoverable draft remains on this device.</p>
@@ -372,7 +407,11 @@ export function SummitApp() {
             <div className="success-mark">✓</div>
             <p className="eyebrow">Response recorded</p>
             <h1>Thank you, {groupName}.</h1>
-            <p>Your group can reopen this device’s saved draft and resubmit while the session remains open. The existing entry will be updated, not duplicated.</p>
+            <p>
+              {isMakeup
+                ? "You can reopen this device’s saved draft and resubmit while this make-up session remains open. The existing entry will be updated, not duplicated."
+                : "Your group can reopen this device’s saved draft and resubmit while the session remains open. The existing entry will be updated, not duplicated."}
+            </p>
             <div className="result-grid">
               <div>
                 <h2>Your highest-priority principles</h2>
@@ -402,7 +441,7 @@ export function SummitApp() {
             <div>
               <p className="eyebrow">Final check · {completed} of {regulations.length} complete</p>
               <h1>Review your framework</h1>
-              <p>Open any theme to change the group’s judgment before submitting.</p>
+              <p>Open any theme to change {isMakeup ? "your judgment" : "the group’s judgment"} before submitting.</p>
             </div>
             <button className="button primary" onClick={submit} disabled={busy || completed !== regulations.length}>{busy ? "Submitting…" : "Submit framework"}</button>
           </section>
@@ -417,7 +456,7 @@ export function SummitApp() {
                     <strong>{regulation.title}</strong>
                     <small>{item?.decision ? decisionLabels[item.decision] : "Incomplete"} · {item?.priority ? priorityLabels[item.priority] : "Priority missing"}</small>
                   </span>
-                  <span className={required(item) ? "status complete" : "status"}>{required(item) ? "Complete" : "Edit"} →</span>
+                  <span className={required(item, isMakeup) ? "status complete" : "status"}>{required(item, isMakeup) ? "Complete" : "Edit"} →</span>
                 </button>
               );
             })}
@@ -493,8 +532,12 @@ export function SummitApp() {
           </aside>
           <section className="response-panel" aria-label={`Response to regulation ${current.number}`}>
             <div className="response-heading">
-              <p className="eyebrow">Your group’s judgment</p>
-              <p>Discuss first, then give one judgment for the whole theme. Pick one answer for A–C, and up to three obstacles for D.</p>
+              <p className="eyebrow">{isMakeup ? "Your individual judgment" : "Your group’s judgment"}</p>
+              <p>
+                {isMakeup
+                  ? "Give your own judgment for the whole theme. Pick one answer for A–C, up to three obstacles for D, and explain your reasoning in F."
+                  : "Discuss first, then give one judgment for the whole theme. Pick one answer for A–C, and up to three obstacles for D."}
+              </p>
             </div>
             <ChoiceGroup legend="A. Decision" value={response.decision} options={decisionLabels} onChange={(value) => update({ decision: value })} />
             <ChoiceGroup legend="B. International feasibility" value={response.feasibility} options={feasibilityLabels} onChange={(value) => update({ feasibility: value })} />
@@ -506,8 +549,8 @@ export function SummitApp() {
               <textarea value={response.proposedRevision || ""} onChange={(event) => update({ proposedRevision: event.target.value })} placeholder="How would you rewrite this regulation?" rows={4} />
             </label>
             <label>
-              F. Brief reasoning <span className="optional">Optional · {response.reasoning?.length || 0}/300</span>
-              <textarea value={response.reasoning || ""} onChange={(event) => update({ reasoning: event.target.value })} placeholder="Briefly explain your decision." maxLength={300} rows={3} />
+              F. Brief reasoning {isMakeup ? <span>Required</span> : <span className="optional">Optional</span>} · {response.reasoning?.length || 0}/300
+              <textarea value={response.reasoning || ""} onChange={(event) => update({ reasoning: event.target.value })} placeholder={isMakeup ? "Explain your reasoning for this theme — required since you’re working individually." : "Briefly explain your decision."} maxLength={300} rows={3} />
             </label>
             {error && <p className="error" role="alert">{error}</p>}
             <div className="form-navigation">
