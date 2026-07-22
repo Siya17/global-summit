@@ -378,12 +378,10 @@ export function SummitApp() {
                 {joinPreview?.isMakeup ? "Your name" : "Group name or number"}
                 <input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={joinPreview?.isMakeup ? "e.g. Jordan Lee" : "e.g. Group 4"} required />
               </label>
-              {!joinPreview?.isMakeup && (
-                <label>
-                  Participant names <span className="optional">Optional</span>
-                  <textarea value={names} onChange={(event) => setNames(event.target.value)} placeholder="Separate names with commas" rows={3} />
-                </label>
-              )}
+              <label>
+                {joinPreview?.isMakeup ? "Notes" : "Participant names"} <span className="optional">Optional</span>
+                <textarea value={names} onChange={(event) => setNames(event.target.value)} placeholder={joinPreview?.isMakeup ? "Anything your instructor should know" : "Separate names with commas"} rows={3} />
+              </label>
               {error && <p className="error" role="alert">{error}</p>}
               <button className="button primary wide" disabled={busy}>{busy ? "Checking session…" : "Begin deliberation →"}</button>
               <p className="form-note">No visible student account is required. A recoverable draft remains on this device.</p>
